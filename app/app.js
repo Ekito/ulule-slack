@@ -3,69 +3,77 @@ var bodyParser = require('body-parser');
 
 var config = require('./config');
 
-var request = require('request');
+if (config.ulule.key === '' || config.ulule.username === ''  || config.slack.token === ''  || config.slack.channel === '' ) {
 
-var app = express();
+    console.log('OOPS :-(');
+    console.log('Please configure your keys etc... in app/config.js');
+} else {
 
-app.use(bodyParser.json());
+    var request = require('request');
 
-app.get('/ping', function(req, res) {
-    res.status(200).json({ value: 'pong' });
-});
+    var app = express();
 
-app.post('/webhook', function(req, res) {
+    app.use(bodyParser.json());
 
-    if (req.body.resource && req.body.resource.uri) {
-        
-        var order_uri = req.body.resource.uri;
+    app.get('/ping', function(req, res) {
+        res.status(200).json({ value: 'pong' });
+    });
 
-        var ulule_auth = config.ulule.username + ':' + config.ulule.key;
+    app.post('/webhook', function(req, res) {
 
-        request.get(order_uri, {
-            headers: {
-                'Authorization': 'ApiKey ' + ulule_auth
-            }
-        }, function (error, response, body) {
-            if (!error && response.statusCode == 200) {
-                var order = JSON.parse(body);
+        if (req.body.resource && req.body.resource.uri) {
 
-                var message = order.order_total + '€ de ' + order.user.name +  ' (' + order.user.email + ') par ' + order.payment_method
+            var order_uri = req.body.resource.uri;
 
-                console.log(message);
+            var ulule_auth = config.ulule.username + ':' + config.ulule.key;
 
-                request.get('https://slack.com/api/chat.postMessage', {
-                    qs: {
-                        token:config.slack.token, 
-                        channel:config.slack.channel,
-                        text: message,
-                        pretty:1
-                    }
-                }, function (error, response, body) {
+            request.get(order_uri, {
+                headers: {
+                    'Authorization': 'ApiKey ' + ulule_auth
+                }
+            }, function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    var order = JSON.parse(body);
 
-                    console.log(body);
+                    var message = order.order_total + '€ de ' + order.user.name +  ' (' + order.user.email + ') par ' + order.payment_method
 
-                    res.status(200).json({ order_uri: order_uri });
-                });
+                    console.log(message);
 
-            } else {
-                console.log('ERROR', error, body);
-                res.status(400).json({ error: body });
-            }
+                    request.get('https://slack.com/api/chat.postMessage', {
+                        qs: {
+                            token:config.slack.token,
+                            channel:config.slack.channel,
+                            text: message,
+                            pretty:1
+                        }
+                    }, function (error, response, body) {
 
+                        console.log(body);
 
-        });
+                        res.status(200).json({ order_uri: order_uri });
+                    });
 
-    } else {
-        res.status(400).json({});
-    }
+                } else {
+                    console.log('ERROR', error, body);
+                    res.status(400).json({ error: body });
+                }
 
 
-});
+            });
 
-var port = process.env.PORT || 9000;
+        } else {
+            res.status(400).json({});
+        }
 
-app.listen(port, function () {
-    console.log('App listening on port 9000!');
-});
 
-module.exports = app;
+    });
+
+    var port = process.env.PORT || 9000;
+
+    app.listen(port, function () {
+        console.log('App listening on port 9000!');
+    });
+
+    module.exports = app;
+
+}
